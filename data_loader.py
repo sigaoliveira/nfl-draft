@@ -49,3 +49,32 @@ def get_position_groups(df):
     }
     df['pos_group'] = df['position'].map(pos_map).fillna('Other')
     return df
+
+import os
+@st.cache_data
+def load_consensus_data():
+    """
+    Loads the 2026 Consensus Board Excel file if it exists.
+    Returns None if the file is not found.
+    """
+    file_path = '2026 Consensus Board (134 Boards).xlsx'
+    if not os.path.exists(file_path):
+        return None
+    
+    try:
+        df = pd.read_excel(file_path, header=3)
+        # Drop rows where 'Pick' is NaN or 'Ovr' is NaN
+        df = df.dropna(subset=['Pick', 'Ovr']).copy()
+        
+        # Ensure numerical types
+        df['Pick'] = pd.to_numeric(df['Pick'], errors='coerce')
+        df['Ovr'] = pd.to_numeric(df['Ovr'], errors='coerce')
+        
+        # Calculate Delta: Positive means Steal (Drafted later than consensus)
+        # Negative means Reach (Drafted earlier than consensus)
+        df['Delta'] = df['Pick'] - df['Ovr']
+        
+        return df
+    except Exception as e:
+        print(f"Error loading consensus data: {e}")
+        return None
