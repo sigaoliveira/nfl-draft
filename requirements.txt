@@ -2,3 +2,5 @@ nfl_data_py
 pandas
 matplotlib
 seaborn
+streamlit
+plotly
