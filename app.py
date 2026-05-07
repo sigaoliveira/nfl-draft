@@ -22,12 +22,12 @@ with st.spinner("Loading draft data..."):
 # Home Page
 if page == "Home":
     st.header("Welcome to the NFL Draft Analysis Tool")
-    st.write("This tool helps analyze historical draft data, player value (CarAV), and team success rates.")
+    st.write("This tool helps analyze historical draft data, player value (wAV), and team success rates.")
     
     col1, col2, col3 = st.columns(3)
     col1.metric("Total Picks Analyzed", len(df))
     col2.metric("Seasons Covered", f"{df['season'].min()} - {df['season'].max()}")
-    col3.metric("Total Hall of Famers", df['hof'].eq('yes').sum())
+    col3.metric("Total Hall of Famers", df['hof'].eq(True).sum())
 
     st.subheader("Picks by Position Group")
     fig = px.pie(df, names='pos_group', title="Distribution of Picks by Position Group")
@@ -35,26 +35,28 @@ if page == "Home":
 
 # Metrics Explorer
 elif page == "Metrics Explorer":
-    st.header("CarAV & DrAV Analysis")
-    st.write("Explore Career Approximate Value (CarAV) and Value for the Drafting Team (DrAV).")
+    st.header("wAV & DrAV Analysis")
+    st.write("Explore Weighted Approximate Value (wAV) and Value for the Drafting Team (DrAV).")
     
     pos_filter = st.multiselect("Select Positions", options=sorted(df['position'].unique()), default=['QB', 'WR', 'RB', 'DE'])
     
-    filtered_df = df[df['position'].isin(pos_filter)]
+    filtered_df = df[df['position'].isin(pos_filter)].copy()
+    filtered_df['w_av'] = filtered_df['w_av'].astype(float)
+    filtered_df['dr_av'] = filtered_df['dr_av'].astype(float)
     
-    st.subheader("CarAV vs Pick Number")
-    fig = px.scatter(filtered_df, x='pick', y='car_av', color='position', 
+    st.subheader("wAV vs Pick Number")
+    fig = px.scatter(filtered_df, x='pick', y='w_av', color='position', 
                      hover_data=['pfr_player_name', 'season', 'team'],
-                     title="Career AV by Draft Pick",
-                     labels={'car_av': 'Career AV', 'pick': 'Draft Pick #'})
+                     title="Weighted AV by Draft Pick",
+                     labels={'w_av': 'Weighted AV', 'pick': 'Draft Pick #'})
     st.plotly_chart(fig, use_container_width=True)
     
-    st.subheader("Organization Success: DrAV vs CarAV")
-    st.write("A higher DrAV relative to CarAV means the player stayed and succeeded with the team that drafted them.")
-    filtered_df['success_ratio'] = filtered_df['dr_av'] / filtered_df['car_av'].replace(0, 1)
+    st.subheader("Organization Success: DrAV vs wAV")
+    st.write("A higher DrAV relative to wAV means the player stayed and succeeded with the team that drafted them.")
+    filtered_df['success_ratio'] = filtered_df['dr_av'] / filtered_df['w_av'].replace(0, 1)
     
     fig2 = px.box(filtered_df, x='position', y='success_ratio', points="all",
-                  title="Drafting Team Success Ratio (DrAV / CarAV)")
+                  title="Drafting Team Success Ratio (DrAV / wAV)")
     st.plotly_chart(fig2, use_container_width=True)
 
 # Hit/Bust Analysis
@@ -83,22 +85,24 @@ elif page == "Pick #1 & HOF Deep Dive":
     
     with col1:
         st.subheader("Where do HOFers come from?")
-        hof_df = df[df['hof'] == 'yes']
+        hof_df = df[df['hof'] == True]
         fig_hof = px.histogram(hof_df, x='round', title="HOFers by Round")
         st.plotly_chart(fig_hof)
         
     with col2:
         st.subheader("Pick #1 Success")
-        p1_df = df[df['pick'] == 1]
-        fig_p1 = px.scatter(p1_df, x='season', y='car_av', color='position',
+        p1_df = df[df['pick'] == 1].copy()
+        fig_p1 = px.scatter(p1_df, x='season', y='w_av', color='position',
                             hover_data=['pfr_player_name', 'team'],
-                            title="Career AV of #1 Overall Picks")
+                            title="Weighted AV of #1 Overall Picks")
         st.plotly_chart(fig_p1)
 
     st.subheader("The 'Pick #1 Curse': Success with Original Team?")
-    p1_df['success_with_team'] = p1_df['dr_av'] / p1_df['car_av'].replace(0, 1)
-    fig_curse = px.bar(p1_df.sort_values('season'), x='pfr_player_name', y=['dr_av', 'car_av'], 
-                       barmode='group', title="Career AV vs Drafting Team AV for #1 Picks")
+    p1_df['success_with_team'] = p1_df['dr_av'] / p1_df['w_av'].replace(0, 1)
+    p1_df['dr_av'] = p1_df['dr_av'].astype(float)
+    p1_df['w_av'] = p1_df['w_av'].astype(float)
+    fig_curse = px.bar(p1_df.sort_values('season'), x='pfr_player_name', y=['dr_av', 'w_av'], 
+                       barmode='group', title="Weighted AV vs Drafting Team AV for #1 Picks")
     st.plotly_chart(fig_curse, use_container_width=True)
 
 # Player Comparison
@@ -118,11 +122,13 @@ elif page == "Player Comparison":
     
     similar_picks = df[(df['position'] == player_data['position']) & 
                        (df['pick'] >= player_data['pick'] - 10) & 
-                       (df['pick'] <= player_data['pick'] + 10)]
+                       (df['pick'] <= player_data['pick'] + 10)].copy()
     
-    fig = px.scatter(similar_picks, x='season', y='car_av', 
-                     color=(similar_picks['pfr_player_name'] == player_name),
+    similar_picks['w_av'] = similar_picks['w_av'].astype(float)
+    
+    fig = px.scatter(similar_picks, x='season', y='w_av', 
+                     color=(similar_picks['pfr_player_name'] == player_name).astype(str),
                      hover_data=['pfr_player_name', 'pick'],
-                     title=f"CarAV Comparison for {player_data['position']}s in similar draft slots",
+                     title=f"wAV Comparison for {player_data['position']}s in similar draft slots",
                      labels={'color': 'Is Selected Player'})
     st.plotly_chart(fig, use_container_width=True)
